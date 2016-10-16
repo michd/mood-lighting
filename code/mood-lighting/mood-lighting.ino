@@ -1,7 +1,3 @@
-// TODO: investigate why manual mode is less bright
-// TODO: in program mode, repurpose pots as parameters
-//       For instance: R = fade speed, G = saturation, B = lightness
-
 // PWM output pins for LEDs
 #define PIN_RED 5
 #define PIN_GREEN 3
@@ -16,7 +12,7 @@
 #define PIN_MODE_SELECT 15
 
 // Base increment for hue
-#define HUE_STEP 0.001
+#define HUE_STEP 0.00001
 
 double hue = 0;
 
@@ -44,9 +40,12 @@ void loop() {
   } else {
     // In program mode we loop through the hue wheel
     byte rgbColor[3];
-    hslToRgb(hue, 1, 0.5, rgbColor);
+    double saturation = normalizeAnalog(analogRead(PIN_GREEN_IN));
+    double lightness = normalizeAnalog(analogRead(PIN_BLUE_IN)) * 0.5;
+    hslToRgb(hue, saturation, lightness, rgbColor);
     writeColor(rgbColor);
-    hue += HUE_STEP;
+    double speed = expCurve(normalizeAnalog(analogRead(PIN_RED_IN)), 4);
+    hue += HUE_STEP * ((speed * 2500) + 1);
     if (hue > 1) hue = 0;
   }
   
@@ -56,9 +55,9 @@ void loop() {
 // Read the currently configured color from the 3 analog
 // inputs, writing it to the array outColor
 void readColor(byte* outColor) {
-  outColor[0] = (byte)(analogRead(PIN_RED_IN) / 16);
-  outColor[1] = (byte)(analogRead(PIN_GREEN_IN) / 16);
-  outColor[2] = (byte)(analogRead(PIN_BLUE_IN) / 16);
+  outColor[0] = analogRead(PIN_RED_IN) >> 2;
+  outColor[1] = analogRead(PIN_GREEN_IN) >> 2;
+  outColor[2] = analogRead(PIN_BLUE_IN) >> 2;
 }
 
 // Shorthand to use arrays for writing color to outputs
@@ -70,6 +69,18 @@ void writeColor(byte red, byte green, byte blue) {
   analogWrite(PIN_RED, red);
   analogWrite(PIN_GREEN, green);
   analogWrite(PIN_BLUE, blue);
+}
+
+double normalizeAnalog(int in) {
+  return ((double)in / 1024);
+}
+
+// in should be 0...1
+double expCurve(double in, int power) {
+  double out = in;
+  int i = power;
+  while (i-- > 0) out *= in;
+  return out;
 }
 
 // Thanks to https://github.com/ratkins/RGBConverter/blob/master/RGBConverter.cpp
